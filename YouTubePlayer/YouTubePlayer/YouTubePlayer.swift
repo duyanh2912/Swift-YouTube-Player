@@ -345,12 +345,12 @@ open class YouTubePlayerView: UIView, WKNavigationDelegate {
     
     // MARK: WKNavigationDelegate
     public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        let url = navigationAction.request.url
-        
-        // Check if ytplayer event and, if so, pass to handleJSEvent
-        if let url = url, url.scheme == "ytplayer" { handleJSEvent(url) }
-        
-        decisionHandler(.allow)
+        if let url = navigationAction.request.url, let scheme = url.scheme, scheme == "ytplayer" {
+            decisionHandler(.cancel)
+            handleJSEvent(url)
+        } else {
+            decisionHandler(.allow)
+        }
     }
 }
 
