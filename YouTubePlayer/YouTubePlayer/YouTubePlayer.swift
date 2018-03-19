@@ -7,6 +7,7 @@
 //
 
 import UIKit
+import WebKit
 
 public enum YouTubePlayerState: String {
     case Unstarted = "-1"
@@ -82,12 +83,12 @@ public func videoIDFromYouTubeURL(_ videoURL: URL) -> String? {
 }
 
 /** Embed and control YouTube videos */
-open class YouTubePlayerView: UIView, UIWebViewDelegate {
-    
+open class YouTubePlayerView: UIView, WKNavigationDelegate {
+    public typealias JSEvalHandler = ((Any?, Error?) -> ())
     public typealias YouTubePlayerParameters = [String: AnyObject]
     public var baseURL = "about:blank"
     
-    fileprivate var webView: UIWebView!
+    fileprivate var webView: WKWebView!
     
     /** The readiness of the player */
     fileprivate(set) open var ready = false
@@ -130,12 +131,15 @@ open class YouTubePlayerView: UIView, UIWebViewDelegate {
     // MARK: Web view initialization
     
     fileprivate func buildWebView(_ parameters: [String: AnyObject]) {
-        webView = UIWebView()
+        let configuration = WKWebViewConfiguration()
+        configuration.allowsInlineMediaPlayback = true
+        configuration.mediaPlaybackRequiresUserAction = false
+        
+        webView = WKWebView(frame: .zero, configuration: configuration)
         webView.isOpaque = false
         webView.backgroundColor = UIColor.clear
-        webView.allowsInlineMediaPlayback = true
-        webView.mediaPlaybackRequiresUserAction = false
-        webView.delegate = self
+      
+        webView.navigationDelegate = self
         webView.scrollView.isScrollEnabled = false
     }
     
@@ -167,54 +171,54 @@ open class YouTubePlayerView: UIView, UIWebViewDelegate {
     // MARK: Player controls
     
     open func mute() {
-        evaluatePlayerCommand("mute()")
+        evaluatePlayerCommand("mute()", onComplete: nil)
     }
     
     open func unMute() {
-        evaluatePlayerCommand("unMute()")
+        evaluatePlayerCommand("unMute()", onComplete: nil)
     }
     
     open func play() {
-        evaluatePlayerCommand("playVideo()")
+        evaluatePlayerCommand("playVideo()", onComplete: nil)
     }
     
     open func pause() {
-        evaluatePlayerCommand("pauseVideo()")
+        evaluatePlayerCommand("pauseVideo()", onComplete: nil)
     }
     
     open func stop() {
-        evaluatePlayerCommand("stopVideo()")
+        evaluatePlayerCommand("stopVideo()", onComplete: nil)
     }
     
     open func clear() {
-        evaluatePlayerCommand("clearVideo()")
+        evaluatePlayerCommand("clearVideo()", onComplete: nil)
     }
     
     open func seekTo(_ seconds: Float, seekAhead: Bool) {
-        evaluatePlayerCommand("seekTo(\(seconds), \(seekAhead))")
+        evaluatePlayerCommand("seekTo(\(seconds), \(seekAhead))", onComplete: nil)
     }
     
-    open func getDuration() -> String? {
-        return evaluatePlayerCommand("getDuration()")
+    open func getDuration(onComplete: JSEvalHandler?) {
+        return evaluatePlayerCommand("getDuration()", onComplete: onComplete)
     }
     
-    open func getCurrentTime() -> String? {
-        return evaluatePlayerCommand("getCurrentTime()")
+    open func getCurrentTime(onComplete: JSEvalHandler?) {
+        evaluatePlayerCommand("getCurrentTime()", onComplete: onComplete)
     }
     
     // MARK: Playlist controls
     
     open func previousVideo() {
-        evaluatePlayerCommand("previousVideo()")
+        evaluatePlayerCommand("previousVideo()", onComplete: nil)
     }
     
     open func nextVideo() {
-        evaluatePlayerCommand("nextVideo()")
+        evaluatePlayerCommand("nextVideo()", onComplete: nil)
     }
     
-    @discardableResult fileprivate func evaluatePlayerCommand(_ command: String) -> String? {
+    fileprivate func evaluatePlayerCommand(_ command: String, onComplete: JSEvalHandler?) {
         let fullCommand = "player." + command + ";"
-        return webView.stringByEvaluatingJavaScript(from: fullCommand)
+        webView.evaluateJavaScript(fullCommand, completionHandler: onComplete)
     }
     
     
@@ -339,16 +343,14 @@ open class YouTubePlayerView: UIView, UIWebViewDelegate {
     }
     
     
-    // MARK: UIWebViewDelegate
-    
-    open func webView(_ webView: UIWebView, shouldStartLoadWith request: URLRequest, navigationType: UIWebViewNavigationType) -> Bool {
-        
-        let url = request.url
+    // MARK: WKNavigationDelegate
+    public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        let url = navigationAction.request.url
         
         // Check if ytplayer event and, if so, pass to handleJSEvent
         if let url = url, url.scheme == "ytplayer" { handleJSEvent(url) }
         
-        return true
+        decisionHandler(.allow)
     }
 }
 
